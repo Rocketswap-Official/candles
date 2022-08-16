@@ -29,9 +29,13 @@
     "rimraf": "^3.0.2",
     "rxjs": "^7",
     "sqlite3": "^5.0.11",
-    "typeorm": "^0.3.7"
+    "typeorm": "^0.3.7",
+    "cli-color": "^2.0.0",
+    "tracer": "^1.1.4",
+    "socket.io-client": "^3.1.2"
   },
   "devDependencies": {
+    "@types/socket.io-client": "^1.4.34",
     "@nestjs/cli": "^9.0.0",
     "@nestjs/schematics": "^9.0.1",
     "@nestjs/testing": "^9.0.9",

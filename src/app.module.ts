@@ -12,7 +12,7 @@ import { TauCandleEntity } from './entities/tau-candles.entity';
       database: 'db.sqlite',
       entities: [TauCandleEntity],
       synchronize: true,
-      // autoLoadEntities: true
+      autoLoadEntities: true
     }),
   ], controllers: [AppController],
   providers: [AppService, TauCandlesService],
