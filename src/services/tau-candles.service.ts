@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { T_Timeframe, T_TradeType } from '../types';
 
 /**
  * This service contains methods for creating candledata from 

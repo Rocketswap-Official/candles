@@ -1,8 +1,7 @@
 import { Entity, Column, BaseEntity, PrimaryGeneratedColumn, PrimaryColumnCannotBeNullableError } from "typeorm";
 import { config } from "../config";
-import { getNumberFromFixed } from "../utils/block-service-utils";
 import { log } from "../utils/logger";
-import { getVkFromKeys } from "../utils/utils";
+import { getNumberFromFixed, getVkFromKeys } from "../utils/misc-utils";
 
 /** An instance of this entity is created after each time the buy / sell function is successfully called */
 

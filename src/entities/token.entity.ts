@@ -1,7 +1,7 @@
-import { arrFromStr, getContractName } from "../utils/utils";
 import { Entity, Column, BaseEntity, PrimaryGeneratedColumn } from "typeorm";
-import { IKvp } from "../types/misc.types";
+import { IKvp } from "../types";
 import { log } from "../utils/logger";
+import { arrFromStr, getContractName } from "../utils/misc-utils";
 
 /** These are tokens added by watching the submission contract / submit_contract fn */
 
@@ -72,7 +72,7 @@ export const saveToken = async (add_token_dto: AddTokenDto) => {
 		throw new Error("Field missing.");
 	}
 
-	const exists = await TokenEntity.findOne({ contract_name });
+	const exists = await TokenEntity.findOne({ where: { contract_name } });
 	if (exists) return;
 
 	const entity = new TokenEntity();
@@ -144,7 +144,7 @@ export function prepareAddToken(state: IKvp[]): AddTokenDto {
 
 export async function saveTokenUpdate(state: IKvp[]) {
 	let contract_name = state[0].key.split(".")[0];
-	const entity = await TokenEntity.findOne({ contract_name });
+	const entity = await TokenEntity.findOne({ where: { contract_name } });
 	state.forEach(async (change) => {
 		if (entity) {
 			if (change.key.includes(".metadata:token_logo_base64_svg")) entity.token_base64_svg = change.value;
