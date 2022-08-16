@@ -1,7 +1,7 @@
 import { PairEntity } from "./entities/pair.entity";
 
-type T_Timeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "3h" | "4h" | "1d" | "1w"
-type T_TradeType = "buy" | "sell"
+export type T_Timeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "3h" | "4h" | "1d" | "1w"
+export type T_TradeType = "buy" | "sell"
 
 export interface IKvp {
     key: string;
