@@ -1,5 +1,9 @@
+import { config } from "../config";
+import { PairEntity } from "../entities/pair.entity";
+import { getTokenData, saveToken } from "../entities/token.entity";
+import { parseTrades, saveTradesToDb } from "../entities/trade-history.entity";
 import { BlockService } from "../services/block.service";
-import { handleNewBlock, T_ParseBlockFn } from "../socket-client.provider";
+import { handleNewBlock, T_ParseBlockFn } from "../services/socket-client.provider";
 import { log } from "./logger";
 import { getValue, validateTokenContract } from "./misc-utils";
 
@@ -110,9 +114,6 @@ export const prepareAndAddToken = async (contract_name: string) => {
 	}
 };
 
-const isRbxTestContract = (contract_name: string) =>
-	(contract_name.includes("_dai") || contract_name.includes("_stake")) && contract_name.includes("_demo");
-
 /** This method syncs all Tokens and Staking data */
 
 export const syncContracts = async (starting_tx_id = "0", batch_size = 1000, contractName: string = "submission") => {
@@ -146,94 +147,16 @@ export const syncContracts = async (starting_tx_id = "0", batch_size = 1000, con
 				await prepareAndAddToken(contract_name);
 				// return;
 			}
-
-			const is_valid_staking_contract = validateStakingContract(contract_source.value);
-			if (is_valid_staking_contract) {
-				const contract_state = (await getContractState(contract_name))[contract_name];
-				if (contract_state?.__developer__ === config.staking_contract_submittor) {
-					staking_contracts_to_process.push({ contract_name, contract_state });
-				}
-			}
 		}
 	}
 	log.log(`${valid_tokens.length} tokens added to DB`);
 	await prepareAndAddToken("currency");
-	await syncAllStakingData(staking_contracts_to_process);
 
 	if (length === batch_size) {
 		const tx_uid = res.history[length - 1].tx_uid;
 		console.log("getting more blocks from tx_uid : " + tx_uid);
 		return await syncContracts(tx_uid, batch_size);
 	}
-};
-
-export const syncAllStakingData = async (staking_contracts) => {
-	log.log(`beginning sync of ${staking_contracts.length} staking contracts to DB`);
-	for (let s of staking_contracts) {
-		/**
-		 * 1. Write Meta to DB
-		 */
-		// log.log(Object.keys(s.contract_state));
-		await syncStakingMeta(s);
-		/**
-		 * 2. Sync Epoch Entities to DB
-		 */
-		await syncEpochs(s);
-		/**
-		 * 3. Create UserStakingEntities
-		 */
-		await syncUserStakingData(s);
-	}
-};
-
-export const syncEpochs = async (state) => {
-	const { contract_state, contract_name } = state;
-	const epochs = contract_state.Epochs;
-
-	const keys = Object.keys(epochs);
-
-	const parsed_epochs = keys.map((val) => {
-		const e = epochs[val];
-		return parseEpoch(e, val);
-	});
-	for (let e of parsed_epochs) {
-		await createNewEpoch(e, contract_name);
-	}
-};
-
-export const syncStakingMeta = async (staking_contract: any) => {
-	const ent = new StakingMetaEntity();
-	const contract_name = staking_contract.contract_name;
-	const state = staking_contract.contract_state;
-
-	ent.WithdrawnBalance = getValue(state.WithdrawnBalance);
-	ent.__developer__ = state.__developer__;
-	ent.contract_name = contract_name;
-	ent.YIELD_TOKEN = state.meta.YIELD_TOKEN;
-	ent.STAKING_TOKEN = state.meta.STAKING_TOKEN;
-	ent.EmissionRatePerHour = getValue(state.EmissionRatePerHour);
-	ent.EmissionRatePerSecond = getValue(state.EmissionRatePerSecond);
-	ent.visible = decideStakingVisibility(ent.EmissionRatePerHour);
-	ent.EpochMaxRatioIncrease = getValue(state.EpochMaxRatioIncrease);
-	ent.EpochMinTime = getValue(state.EpochMinTime);
-	ent.EndTime = state.EndTime;
-	ent.StartTime = state.StartTime;
-	ent.OpenForBusiness = state.OpenForBusiness;
-	ent.StakedBalance = getValue(state.StakedBalance);
-	ent.TimeRampValues = state.TimeRampValues;
-	ent.meta = state.meta;
-	ent.DevRewardPct = getValue(state.DevRewardPct);
-	ent.UseTimeRamp = state.UseTimeRamp;
-	ent.DevRewardWallet = state.DevRewardWallet;
-
-	if (state.EmissionRatePerTauYearly) {
-		ent.EmissionRatePerTauYearly = getValue(state.EmissionRatePerTauYearly);
-		ent.EmissionRatePerHour = Number(state.EmissionRatePerTauYearly) / 365 / 24;
-	}
-
-	ent.Epoch = getCurrentEpoch(state);
-
-	await ent.save();
 };
 
 export const examineTxState = (history: any[]) => {
@@ -247,13 +170,6 @@ export const examineTxState = (history: any[]) => {
 	});
 	const last_tx = price_affected[price_affected.length - 1];
 	const last_tx_time = new Date(last_tx.txInfo.transaction.metadata.timestamp * 1000);
-};
-
-export const decideStakingVisibility = (value) => {
-	if (!value) return true;
-	if (changeVisibility(value) === "hide") return false;
-	else if (changeVisibility(value) === "show") return true;
-	return true;
 };
 
 export const getCurrentEpoch = (state: any) => {
@@ -271,20 +187,6 @@ export const parseEpoch = (epoch, index) => {
 	};
 };
 
-export async function syncIdentityData() {
-	const state = await getContractState(config.identity_contract);
-	const names_state = state[config.identity_contract].key_to_name;
-
-	const keys = Object.keys(names_state);
-
-	for (let vk of keys) {
-		const entity = new NameEntity();
-		entity.vk = vk;
-		entity.name = names_state[vk];
-		await entity.save();
-	}
-	log.log(`${keys.length} identity contracts synced`);
-}
 
 export async function getLatestSyncedBlock(): Promise<number> {
 	const res = await axios(`http://${BlockService.get_block_service_url()}/latest_synced_block`);
@@ -341,24 +243,8 @@ export const syncTokenTradeHistory = async (starting_tx_id = "0", batch_size = 1
 	}
 };
 
-const getProxyActionPath = (req_params: IBlockServiceProxyReq): string | false => {
-	let { action_name, args } = req_params;
-	if (typeof args === "string") args = [args]
-	const requests = {
-		get_balance_value: `current/one/${args[0]}/balances/${args[1]}`,
-		get_lp_approval_value: `current/one/${config.amm_contract}/lp_points/${args[0]}`,
-		get_discount: `current/one/${config.amm_contract}/discount/${args[0]}`,
-		get_staked_rocketfuel: `current/one/${config.amm_contract}/staked_amount/${args[0]}:con_rswp_lst001`
-	};
 
-	const request_path = requests[action_name];
-	if (!request_path) throw `Request_name ${action_name} is not found.`;
-	return request_path;
-};
+function saveBalances(contract_name: string, balances: any) {
+	throw new Error("Function not implemented.");
+}
 
-export const proxyBlockserviceRequest = async (req_params: IBlockServiceProxyReq) => {
-	const request_path = getProxyActionPath(req_params);
-	const url = `http://${BlockService.get_block_service_url()}/${request_path}`
-	const req = await axios.get(url);
-	return req.data?.value;
-};
