@@ -12,8 +12,10 @@ export const config_prod = {
  * The candle resolutions we want to create
  */
 
-export const candle_resolutions: T_Resolution[] = ["1h", "4h", "1d"]
+export const candle_resolutions: T_Resolution[] = ["15m", "30m", "1h", "3h", "4h", "8h", "1d", "1w"]
 
 export const getConfig = () => config_prod
 
 export let config = getConfig();
+
+export const max_precision = 10

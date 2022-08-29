@@ -14,10 +14,7 @@ export class TradeHistoryEntity extends BaseEntity {
 	contract_name: string;
 
 	@Column()
-	token_symbol: string;
-
-	@Column()
-	price: string;
+	price: number;
 
 	@Column()
 	time: number;
@@ -164,14 +161,15 @@ export const findLastMostRecentTradeFromDb = async (contract_name: string): Prom
 };
 
 export const saveTradesToDb = async (trades: ITrade[]) => {
-	const proms = trades.map((trade) => {
+	const trade_entities = trades.map((trade) => {
 		const trade_entity = new TradeHistoryEntity();
 		for (let field in trade) {
 			trade_entity[field] = trade[field];
 		}
 		return trade_entity;
 	});
-	for (let p of proms) {
-		await p.save()
-	}
+	await TradeHistoryEntity.insert(trade_entities)
+	// for (let p of trade_entities) {
+	// 	await p.save()
+	// }
 };

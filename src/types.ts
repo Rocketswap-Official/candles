@@ -1,6 +1,6 @@
 import { PairEntity } from "./entities/pair.entity";
 
-export type T_Timeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "3h" | "4h" | "1d" | "1w"
+export type T_Resolution = "1m" | "5m" | "15m" | "30m" | "1h" | "3h" | "4h" | "8h" | "1d" | "3d" | "1w"
 export type T_TradeType = "buy" | "sell"
 
 export interface IKvp {
@@ -24,7 +24,7 @@ export interface ITrollBoxMessage {
     timestamp: number;
 }
 
-export interface IUserYieldInfo {
+export interface I_UserYieldInfo {
     total_staked: number;
     current_yield: number;
     yield_per_sec: number;
@@ -34,29 +34,29 @@ export interface IUserYieldInfo {
 }
 
 
-export interface ClientStakingUpdateType extends UpdateType {
+export interface T_ClientStakingUpdate extends T_Update {
     action: "client_staking_update";
     staking_contract: string;
 }
 
-export interface PriceUpdateType extends UpdateType {
+export interface T_PriceUpdate extends T_Update {
     action: "price_update";
     contract_name: string;
     price: string;
     time: number;
 }
 
-export interface BalanceUpdateType extends UpdateType {
+export interface T_BalanceUpdate extends T_Update {
     action: "balance_update";
     payload: any;
 }
 
-export interface TauUsdPriceUpdateType extends UpdateType {
+export interface T_TauUsdPriceUpdate extends T_Update {
     action: "tau_usd_price";
     price: string;
 }
 
-export type UpdateType = {
+export type T_Update = {
     action:
     | "metrics_update"
     | "price_update"
@@ -72,7 +72,7 @@ export type UpdateType = {
     | "new_market_update";
 };
 
-export interface TradeUpdateType extends UpdateType {
+export interface T_TradeUpdate extends T_Update {
     action: "trade_update";
     type: "buy" | "sell";
     amount: string;
@@ -81,4 +81,22 @@ export interface TradeUpdateType extends UpdateType {
     price: string;
     time: number;
     hash: string;
+}
+
+export interface I_LpPointsState {
+    [key: string]: {
+        [key: string]: string | { __fixed__: string };
+    };
+}
+
+export interface I_ReservesState {
+    [key: string]: [{ __fixed__: string }, { __fixed__: string }];
+}
+
+export interface I_OhlcData {
+    open: number
+    close: number
+    high: number
+    low: number
+    time: number
 }

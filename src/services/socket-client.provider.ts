@@ -51,12 +51,12 @@ export async function handleNewBlock(block: IBsBlock, parseBlockFn: T_ParseBlock
 			const { contract } = transaction.payload;
 			const { timestamp } = transaction.metadata;
 			const block_obj: BlockDTO = { state, hash, fn, contract, timestamp };
-			log.log(`Processed ${hash} for ${contract}`);
+			// log.log(`Processed ${hash} for ${contract}`);
 			if (Object.keys(state)?.length) {
 				await parseBlockFn(block_obj);
 			}
 		}
-		log.log(`processed ${transactions.length} transactions`)
+		// log.log(`processed ${transactions.length} transactions`)
 	}
 	await updateLastBlock({ block_num });
 }

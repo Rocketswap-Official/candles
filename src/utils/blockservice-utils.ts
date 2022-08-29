@@ -1,9 +1,11 @@
 import { config } from "../config";
+import { LpPointsEntity } from "../entities/lp-points.entity";
 import { PairEntity } from "../entities/pair.entity";
 import { getTokenData, saveToken } from "../entities/token.entity";
 import { parseTrades, saveTradesToDb } from "../entities/trade-history.entity";
 import { BlockService } from "../services/block.service";
 import { handleNewBlock, T_ParseBlockFn } from "../services/socket-client.provider";
+import { I_LpPointsState, I_ReservesState } from "../types";
 import { log } from "./logger";
 import { getValue, validateTokenContract } from "./misc-utils";
 
@@ -107,57 +109,8 @@ export const prepareAndAddToken = async (contract_name: string) => {
 	if (contract_name !== "currency") {
 		await saveToken(token);
 	}
-	/** Update Balances */
-	if (balances) {
-		await saveBalances(contract_name, balances);
-		log.log(`Saved balances for ${contract_name}`);
-	}
 };
 
-/** This method syncs all Tokens and Staking data */
-
-export const syncContracts = async (starting_tx_id = "0", batch_size = 1000, contractName: string = "submission") => {
-	log.log("Beginning sync of token contracts");
-	const res = await getContractChanges(contractName, starting_tx_id, batch_size);
-	const length = res.history.length;
-
-	/**
-	 * 1. Get all contracts
-	 */
-
-	const all_contracts_titles = await getAllContracts();
-	log.log(`Retrieved ${all_contracts_titles.length} contract titles`);
-	const contract_titles_parsed = all_contracts_titles.map((contract_title) => contract_title.contractName);
-	/**
-	 * 2. Get each contract's source code & check if it's a token / staking contract
-	 */
-	const valid_tokens = [];
-	const staking_contracts_to_process = [];
-
-	//
-
-	for (let contract_name of contract_titles_parsed) {
-		const contract_source = await getContractSource(contract_name);
-
-		if (contract_source.value) {
-			const is_valid_token = validateTokenContract(contract_source.value);
-
-			if (is_valid_token) {
-				valid_tokens.push(contract_name);
-				await prepareAndAddToken(contract_name);
-				// return;
-			}
-		}
-	}
-	log.log(`${valid_tokens.length} tokens added to DB`);
-	await prepareAndAddToken("currency");
-
-	if (length === batch_size) {
-		const tx_uid = res.history[length - 1].tx_uid;
-		console.log("getting more blocks from tx_uid : " + tx_uid);
-		return await syncContracts(tx_uid, batch_size);
-	}
-};
 
 export const examineTxState = (history: any[]) => {
 	const price_affected = history.filter((hist) => hist.state_changes_obj?.con_rocketswap_official_v1_1?.prices);
@@ -172,31 +125,18 @@ export const examineTxState = (history: any[]) => {
 	const last_tx_time = new Date(last_tx.txInfo.transaction.metadata.timestamp * 1000);
 };
 
-export const getCurrentEpoch = (state: any) => {
-	const index = state.CurrentEpochIndex;
-	const current_epoch = state.Epochs[index];
-	return parseEpoch(current_epoch, index);
-};
-
-export const parseEpoch = (epoch, index) => {
-	return {
-		index: index,
-		time: epoch?.time,
-		amt_per_hr: getValue(epoch?.amt_per_hr),
-		staked: getValue(epoch?.staked)
-	};
-};
-
 
 export async function getLatestSyncedBlock(): Promise<number> {
 	const res = await axios(`http://${BlockService.get_block_service_url()}/latest_synced_block`);
 	return res.data?.latest_synced_block;
 }
 
+
 export async function getBlock(num: number): Promise<any> {
 	const res = await axios(`http://${BlockService.get_block_service_url()}/blocks/${num}`);
 	return res.data;
 }
+
 
 export async function fillBlocksSinceSync(block_to_sync_from: number, parseBlock: T_ParseBlockFn): Promise<void> {
 	try {
@@ -214,15 +154,17 @@ export async function fillBlocksSinceSync(block_to_sync_from: number, parseBlock
 	}
 }
 
+
 export async function syncTradeHistory() {
 	const pairs = await PairEntity.find();
-	log.log(`syncing history for ${pairs.length} pairs`);
+	// log.log(`syncing history for ${pairs.length} pairs`);
 	for (let p of pairs) {
-		await syncTokenTradeHistory("0", 1000, p.contract_name, p.token_symbol);
+		await syncTokenTradeHistory("0", 3000, p.contract_name, p.token_symbol);
 	}
 }
 
-export const syncTokenTradeHistory = async (starting_tx_id = "0", batch_size = 1000, contract_name: string, token_symbol: string) => {
+
+export const syncTokenTradeHistory = async (starting_tx_id = "0", batch_size = 3000, contract_name: string, token_symbol: string) => {
 	log.log(`${contract_name} retrieving more trades from ${starting_tx_id}`);
 	const res = await getRootKeyChanges({
 		contractName: contract_name,
@@ -244,7 +186,48 @@ export const syncTokenTradeHistory = async (starting_tx_id = "0", batch_size = 1
 };
 
 
-function saveBalances(contract_name: string, balances: any) {
-	throw new Error("Function not implemented.");
-}
+export const syncAmmCurrentState = async () => {
+	const current_state = await getContractState(config.amm_contract);
+	const amm_state = current_state[config.amm_contract];
 
+	if (amm_state) {
+		const { discount, lp_points, reserves, staked_amount, state: amm_meta } = amm_state;
+		await syncLpPointsEntities(lp_points);
+		await syncPairEntities(reserves);
+	}
+	log.log("AMM_META state synced");
+};
+
+
+export const syncPairEntities = async (reserves_state: I_ReservesState) => {
+	const lp_totals = await LpPointsEntity.findOne({ where: { vk: "__hash_self__" } });
+	for (let contract of Object.keys(reserves_state)) {
+		const reserves = reserves_state[contract];
+		const ent = new PairEntity();
+		ent.contract_name = contract;
+		ent.lp = lp_totals.points[contract];
+		ent.reserves = [getValue(reserves[0]), getValue(reserves[1])];
+		ent.price = String(Number(ent.reserves[0]) / Number(ent.reserves[1]));
+		await ent.save();
+	}
+};
+
+
+export const syncLpPointsEntities = async (lp_points_state: I_LpPointsState) => {
+	const contract_keys = Object.keys(lp_points_state);
+	for (let contract of contract_keys) {
+		const contract_obj = lp_points_state[contract];
+		const address_keys = Object.keys(contract_obj);
+		for (let vk of address_keys) {
+			const lp_value = getValue(contract_obj[vk]);
+			let lp_points_entity = await LpPointsEntity.findOne({ where: { vk } });
+			if (!lp_points_entity) {
+				lp_points_entity = new LpPointsEntity();
+				lp_points_entity.vk = vk;
+				lp_points_entity.points = {};
+			}
+			lp_points_entity.points[contract] = String(lp_value);
+			await lp_points_entity.save();
+		}
+	}
+};
