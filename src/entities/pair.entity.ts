@@ -2,8 +2,8 @@ import { Entity, Column, PrimaryColumn, BaseEntity, PrimaryGeneratedColumn } fro
 import { TokenEntity } from "./token.entity";
 import { saveTradeUpdate } from "./trade-history.entity";
 import { log } from "../utils/logger";
-import { IKvp } from "../types";
-import { getVal, isLamdenKey } from "../utils/misc-utils";
+import { I_Kvp } from "../types";
+import { getReservesFromKvp, getVal, isLamdenKey } from "../utils/misc-utils";
 
 /** This entity is created when a new market is detected on the AMM contract. */
 
@@ -30,7 +30,7 @@ export class PairEntity extends BaseEntity {
 
 export async function saveReserves(
 	fn: string,
-	state: IKvp[],
+	state: I_Kvp[],
 	timestamp: number,
 	hash: string,
 	rswp_token_contract: string
@@ -76,10 +76,10 @@ export async function saveReserves(
 }
 
 async function updateReserves(args: {
-	update_reserves: IKvp;
-	price_kvp: IKvp;
-	lp_kvp: IKvp;
-	state: IKvp[];
+	update_reserves: I_Kvp;
+	price_kvp: I_Kvp;
+	lp_kvp: I_Kvp;
+	state: I_Kvp[];
 	fn: string;
 	hash: string;
 	timestamp: number;
@@ -120,13 +120,10 @@ async function updateReserves(args: {
 			});
 			saveTradeUpdate({
 				contract_name,
-				token_symbol: entity.token_symbol,
 				type: fn,
-				vk,
 				amount: amount_exchanged,
 				price,
 				time: timestamp,
-				hash
 			});
 		}
 	}
@@ -158,29 +155,25 @@ function updateTradeFeed(args: {
 	const { type, amount, contract_name, token_symbol, price, time, hash } = args;
 }
 
-export async function savePair(args: { state: IKvp[]; }) {
+export async function savePair(args: { state: I_Kvp[]; }) {
 	const { state } = args;
 	let new_token = false;
-	// console.log(state)
-	// { key: "con_amm2.pairs:con_token_test7", value: true },
+
 	const pair_kvp = state.find((kvp) => kvp.key.split(".")[1].split(":")[0] === "pairs");
 	if (!pair_kvp) return;
+
 	const contract_name = pair_kvp.key.split(".")[1].split(":")[1];
-	const pair_entity = new PairEntity();
-	const token_entity = await TokenEntity.findOne({
-		where: { contract_name }
-	});
-	if (token_entity && !token_entity.has_market) {
-		token_entity.has_market = true;
-		new_token = true;
-		await token_entity.save();
-		pair_entity.contract_name = contract_name;
-	}
-	pair_entity.token_symbol = token_entity.token_symbol;
+
+	let pair_entity = await PairEntity.findOne(contract_name)
+	if (pair_entity) return
+
+	pair_entity = new PairEntity()
+	pair_entity.contract_name = contract_name;
+
 	await pair_entity.save();
 }
 
-export async function savePairLp(state: IKvp[]) {
+export async function savePairLp(state: I_Kvp[]) {
 	const lp_kvp = state.find((kvp) => kvp.key.includes("lp_points") && kvp.key.split(":").length === 2);
 	if (lp_kvp) {
 		const parts = lp_kvp.key.split(".")[1].split(":");
@@ -211,3 +204,31 @@ export const updatePairs = async () => {
 		log.warn(err);
 	}
 };
+
+export async function getTokenList(): Promise<string[]> {
+	const tokens = await PairEntity.find();
+	return tokens.map((token) => token.contract_name);
+}
+
+export async function updatePairReserves(state: I_Kvp[]) {
+	// const is_trade = state.filter(s => s.key.includes("prices")).length > 0
+	// if (is_trade) return
+
+	const reserves_updates = state.filter(s => s.key.includes('reserves'))
+	if (!reserves_updates.length) return
+
+	log.log({ reserves_updates })
+
+	const reserves_to_update = reserves_updates.map(r => {
+		return {
+			contract_name: r.key.split(":")[1],
+			reserves: getReservesFromKvp(r, "string")
+		}
+	})
+
+	for (let r of reserves_to_update) {
+		const pair_entity = await PairEntity.findOne(r.contract_name)
+		pair_entity.reserves = r.reserves as [string, string]
+		await pair_entity.save()
+	}
+}

@@ -22,14 +22,14 @@ export class TradeHistoryEntity extends BaseEntity {
 	@Column()
 	amount: string;
 
-	@Column()
+	@Column({nullable: true})
 	vk: string;
 
 	@Column()
 	type: "buy" | "sell"; // buying or selling the token
 
-	@Column()
-	hash: string;
+	@Column({ nullable: true })
+	hash?: string;
 
 	@Column({ nullable: true })
 	tx_uid?: string;
@@ -53,13 +53,10 @@ export interface ITrade {
 
 export async function saveTradeUpdate(args: {
 	contract_name: string;
-	token_symbol: string;
 	price: string;
 	amount: string;
-	vk: string;
 	type: "buy" | "sell";
 	time: number;
-	hash;
 }) {
 	const entity = new TradeHistoryEntity();
 	for (let arg in args) {
@@ -169,7 +166,4 @@ export const saveTradesToDb = async (trades: ITrade[]) => {
 		return trade_entity;
 	});
 	await TradeHistoryEntity.insert(trade_entities)
-	// for (let p of trade_entities) {
-	// 	await p.save()
-	// }
 };

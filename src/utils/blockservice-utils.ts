@@ -1,13 +1,12 @@
 import { config } from "../config";
 import { LpPointsEntity } from "../entities/lp-points.entity";
 import { PairEntity } from "../entities/pair.entity";
-import { getTokenData, saveToken } from "../entities/token.entity";
 import { parseTrades, saveTradesToDb } from "../entities/trade-history.entity";
 import { BlockService } from "../services/block.service";
 import { handleNewBlock, T_ParseBlockFn } from "../services/socket-client.provider";
 import { I_LpPointsState, I_ReservesState } from "../types";
 import { log } from "./logger";
-import { getValue, validateTokenContract } from "./misc-utils";
+import { getValue } from "./misc-utils";
 
 const axiosDefaultConfig = {
 	proxy: false
@@ -42,7 +41,6 @@ export const getContractChanges = async (contractName: string, last_tx_uid: stri
 export const getContractState = async (contractName: string) => {
 	try {
 		let endpoint = "current/all";
-		// current/all/con_mint
 		const url = `http://${BlockService.get_block_service_url()}/${endpoint}/${contractName}`;
 		let res = await axios(url);
 		return res.data;
@@ -95,20 +93,9 @@ export const getContractSource = async (contract_name: string) => {
 };
 
 export const getContractMeta = async (contract_name: string) => {
-	// http://165.227.181.34:3535/current/one/con_bdt_lst001/__code__
 	const endpoint = "current/all";
 	const res = await axios.get(`http://${BlockService.get_block_service_url()}/${endpoint}/${contract_name}`);
 	return res.data;
-};
-
-export const prepareAndAddToken = async (contract_name: string) => {
-	const state = await getContractState(contract_name);
-	const token_data = getTokenData(state[contract_name], contract_name);
-	const { token, balances } = token_data;
-	/** Save the TokenEntity */
-	if (contract_name !== "currency") {
-		await saveToken(token);
-	}
 };
 
 
@@ -157,7 +144,6 @@ export async function fillBlocksSinceSync(block_to_sync_from: number, parseBlock
 
 export async function syncTradeHistory() {
 	const pairs = await PairEntity.find();
-	// log.log(`syncing history for ${pairs.length} pairs`);
 	for (let p of pairs) {
 		await syncTokenTradeHistory("0", 3000, p.contract_name, p.token_symbol);
 	}

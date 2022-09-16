@@ -1,11 +1,11 @@
-import { Entity, Column, BaseEntity, PrimaryGeneratedColumn } from "typeorm";
+import { Entity, Column, BaseEntity, PrimaryGeneratedColumn, PrimaryColumn } from "typeorm";
 import { I_OhlcData, T_Resolution } from "../types";
 
 
 @Entity()
 export class CandleEntity extends BaseEntity implements I_OhlcData {
-    @PrimaryGeneratedColumn()
-    id: number;
+    @PrimaryColumn()
+    id: string;
 
     @Column()
     contract_name: string;
@@ -33,4 +33,9 @@ export class CandleEntity extends BaseEntity implements I_OhlcData {
 
     @Column()
     volume: number = 0
+
+    @Column({ nullable: true })
+    last?: number
 }
+
+export const constructCandleId = (contract_name: string, timeframe: T_Resolution, epoch: number) => `${contract_name}-${timeframe}-${epoch}`

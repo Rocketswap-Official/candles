@@ -7,11 +7,9 @@ import { CandleEntity } from './entities/candle.entity';
 import { LastBlockEntity } from './entities/last-block.entity';
 import { LpPointsEntity } from './entities/lp-points.entity';
 import { PairEntity } from './entities/pair.entity';
-import { TokenEntity } from './entities/token.entity';
 import { TradeHistoryEntity } from './entities/trade-history.entity';
 import { BlockService } from './services/block.service';
 import { DataSyncProvider } from './services/data-sync.provider';
-import { TauCandlesService } from './services/tau-candles.service';
 
 @Module({
   imports: [
@@ -23,7 +21,7 @@ import { TauCandlesService } from './services/tau-candles.service';
       autoLoadEntities: true
     }),
   ], controllers: [AppController],
-  providers: [AppService, TauCandlesService, DataSyncProvider, BlockService],
+  providers: [AppService, DataSyncProvider, BlockService],
 })
 export class AppModule { }
  

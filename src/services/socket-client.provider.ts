@@ -1,6 +1,6 @@
 import * as io from "socket.io-client";
 import { updateLastBlock } from "../entities/last-block.entity";
-import { IKvp } from "../types";
+import { I_Kvp } from "../types";
 import { log } from "../utils/logger";
 import { BlockService } from "./block.service";
 
@@ -16,12 +16,24 @@ export function initSocket(parseBlockFn: T_ParseBlockFn) {
 		log.log({ init });
 		if (!init) {
 			socket.emit("join", "new-block");
+			// socket.emit("join", "con_rocketswap_official_v1_1");
+
 
 			socket.on("new-block", async (payload) => {
 				const parsed: IBsSocketBlockUpdate = JSON.parse(payload);
 				const bs_block = parsed.message;
 				await handleNewBlock(bs_block, parseBlockFn);
 			});
+
+			// socket.on("new-state-changes-by-transaction", (event, payload) => {
+			// 	log.log({event, payload})
+				// log.log({ event: JSON.parse(event), payload: JSON.parse(payload) })
+			// })
+
+			// socket.on("new-state-changes-one", (event, payload) => {
+			// 	log.log({event, payload})
+			// 	// log.log({ event: JSON.parse(event), payload: JSON.parse(payload) })
+			// })
 			init = true;
 		}
 	});
@@ -42,6 +54,7 @@ export function initSocket(parseBlockFn: T_ParseBlockFn) {
 export async function handleNewBlock(block: IBsBlock, parseBlockFn: T_ParseBlockFn) {
 	const has_transaction = block.subblocks.length && block.subblocks[0].transactions.length;
 	if (!has_transaction) return;
+	// log.log({ block })
 	const { subblocks, number: block_num } = block;
 	for (let sb of subblocks) {
 		const { transactions } = sb;
@@ -62,7 +75,7 @@ export async function handleNewBlock(block: IBsBlock, parseBlockFn: T_ParseBlock
 }
 
 export class BlockDTO {
-	state: IKvp[];
+	state: I_Kvp[];
 	fn: string;
 	contract: string;
 	timestamp: number;
@@ -98,7 +111,7 @@ export interface ITransaction {
 	hash: string;
 	result: string;
 	stamps_user: number;
-	state: IKvp[];
+	state: I_Kvp[];
 	status: number;
 	transaction: ITransactionInner;
 }

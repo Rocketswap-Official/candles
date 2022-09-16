@@ -1,7 +1,10 @@
 import { TokenEntity } from "../entities/token.entity";
 import { log } from "./logger";
-import { config } from "../config";
-import { IKvp } from "../types";
+import { candle_resolutions, config } from "../config";
+import { I_Kvp, T_Resolution } from "../types";
+import { CandleEntity } from "../entities/candle.entity";
+import { TradeHistoryEntity } from "../entities/trade-history.entity";
+import { PairEntity } from "../entities/pair.entity";
 const Fs = require("fs");
 
 const validators = require("types-validate-assert");
@@ -43,18 +46,18 @@ export function validateStakingContract(contract: string): boolean {
 }
 
 
-export function getKey(state: IKvp[], idx_1: number, idx_2: number) {
+export function getKey(state: I_Kvp[], idx_1: number, idx_2: number) {
 	return state[idx_1].key.split(":")[idx_2];
 }
 
 /** Returns and parses a value */
 
-export function getVal(state: IKvp[] | IKvp, idx?: number) {
+export function getVal(state: I_Kvp[] | I_Kvp, idx?: number) {
 	let val;
 	if (idx) {
 		val = state[idx]?.value;
 	} else {
-		val = (state as IKvp)?.value;
+		val = (state as I_Kvp)?.value;
 	}
 	val = val?.__fixed__ || val;
 	if (typeof val === "number") {
@@ -86,7 +89,7 @@ export function getNumber(value: any) {
 	return return_val;
 }
 
-export function getContractName(state: IKvp[]) {
+export function getContractName(state: I_Kvp[]) {
 	let code_entry = getContractEntry(state);
 	if (code_entry) {
 		let code_key = code_entry.key;
@@ -96,14 +99,14 @@ export function getContractName(state: IKvp[]) {
 	return "";
 }
 
-export function getContractEntry(state: IKvp[]) {
+export function getContractEntry(state: I_Kvp[]) {
 	let code_entry = state.filter((kvp) => {
 		return kvp.key.includes("__code__");
 	})[0];
 	return code_entry;
 }
 
-export function getContractCode(state: IKvp[]) {
+export function getContractCode(state: I_Kvp[]) {
 	let entry = getContractEntry(state);
 	return entry ? entry.value : "";
 }
@@ -168,4 +171,41 @@ export const getVkFromKeys = (keys: string[]): string => {
 interface IRswpBalances {
 	vk: string;
 	rswp_balance: number;
+}
+
+export const getReservesFromKvp = (reserves_kvp: I_Kvp, format: "string" | "number" = "number") => {
+	return format === "number" ? [Number(getValue(reserves_kvp.value[0])), Number(getValue(reserves_kvp.value[1]))] : [getValue(reserves_kvp.value[0]), getValue(reserves_kvp.value[1])]
+}
+
+export const countPairsWithHistoricalTrade = async () => {
+	const contracts = (await PairEntity.find()).map(p => p.contract_name)
+	let results = 0
+
+	for (let c of contracts) {
+		const trades = await TradeHistoryEntity.find({ where: { contract_name: c }, take: 2 })
+		// log.log(trades)
+		const amount = trades.length
+		if (amount > 1) results++
+	}
+
+	return results
+}
+
+export const checkCandlesExistForAllPairs = async () => {
+	const contract_names = (await PairEntity.find()).map((p) => p.contract_name)
+	const results = contract_names.reduce((accum, c) => {
+		accum[c] = { contract_name: c, candles: {} }
+		candle_resolutions.forEach(r => accum[c]['candles'] = 0)
+		return accum
+	}, {}
+	)
+	// log.log({ results })
+	for (let c of contract_names) {
+		for (let r of candle_resolutions) {
+			const candle_entity = await CandleEntity.findOne({ where: { contract_name: c, resolution: r } })
+			log.log(`checking ${c} for ${r}`)
+			if (candle_entity) results[c]['candles']++
+		}
+	}
+	return results
 }

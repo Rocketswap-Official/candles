@@ -6,7 +6,7 @@ import {
 	BaseEntity,
 } from "typeorm";
 import { config } from "../config";
-import { IKvp } from "../types";
+import { I_Kvp } from "../types";
 import { getVal } from "../utils/misc-utils";
 
 /** This entity is created / updated when the LP points balance of an address changes or an LP pair is created. */
@@ -24,7 +24,7 @@ export class LpPointsEntity extends BaseEntity {
 }
 
 export async function saveUserLp(args: {
-	state: IKvp[];
+	state: I_Kvp[];
 }) {
 	const { state } = args;
 	const lp_kvp = state.filter(
@@ -51,7 +51,6 @@ export async function saveUserLp(args: {
 			entity.points[contract_name] = value
 			await entity.save();
 		}
-		/** Pair is created */
 		else if (parts.length === 2) {
 			let vk = parts[0].split(".")[0]
 			let entity = await LpPointsEntity.findOne({ where: { vk } });
